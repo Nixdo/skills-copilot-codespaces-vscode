@@ -1,51 +1,42 @@
-// Create web Server
-// Create a web server that can respond to requests for /comments.json
-// with a JSON-encoded array of comments taken from the file comments.json.
-// Assume comments.json is an array of objects, each with a "name" and a
-// "comment" property.
+// Create web server using Express.js
+// Use Mongoose to store data in MongoDB
+// Use Passport.js to authenticate user login
+// Use Bcrypt.js to hash passwords
+// Use Connect-Flash to display flash messages
+// Use Handlebars.js as the template engine
 
-var http = require("http");
-var fs = require("fs");
-var url = require("url");
+// Load modules
+var express = require('express');
+var router = express.Router();
+var passport = require('passport');
+var Comment = require('../models/comment');
+var Post = require('../models/post');
+var User = require('../models/user');
 
-var server = http.createServer(function (request, response) {
-  var urlObj = url.parse(request.url, true);
-  var pathname = urlObj.pathname;
-  var query = urlObj.query;
-
-  if (pathname === "/comments.json") {
-    fs.readFile("comments.json", function (err, data) {
-      if (err) {
-        console.error(err);
-        response.statusCode = 500;
-        response.end("Server error");
-        return;
-      }
-
-      var comments = JSON.parse(data);
-      var commentsToReturn = [];
-
-      if (query.from) {
-        comments.forEach(function (comment) {
-          if (comment.id >= query.from) {
-            commentsToReturn.push(comment);
-          }
-        });
-      } else {
-        commentsToReturn = comments;
-      }
-
-      var returnObj = {
-        comments: commentsToReturn,
-      };
-
-      response.end(JSON.stringify(returnObj));
+// GET /comments
+// Display all comments
+router.get('/', function(req, res, next) {
+    Comment.find().populate('author').exec(function(err, comments) {
+        if (err) {
+            return next(err);
+        }
+        res.render('comments/index', { comments: comments });
     });
-  } else {
-    response.statusCode = 404;
-    response.end("Not found");
-  }
 });
 
-server.listen(8080);
-console.log("Server listening on port 8080");
+// GET /comments/new
+// Display form for adding a new comment
+router.get('/new', function(req, res, next) {
+    if (req.isAuthenticated()) {
+        res.render('comments/new', { message: req.flash('message') });
+    } else {
+        res.redirect('/users/login');
+    }
+});
+
+// POST /comments
+// Process form for adding a new comment
+router.post('/', function(req, res, next) {
+    if (req.isAuthenticated()) {
+        var comment = new Comment({
+            content: req.body.content,
