@@ -1,42 +1,68 @@
-// Create web server using Express.js
-// Use Mongoose to store data in MongoDB
-// Use Passport.js to authenticate user login
-// Use Bcrypt.js to hash passwords
-// Use Connect-Flash to display flash messages
-// Use Handlebars.js as the template engine
+// Create web server application using Node.js
+// Run this using the command: node comments.js
+// and go to http://localhost:8081/comments.html
 
-// Load modules
-var express = require('express');
-var router = express.Router();
-var passport = require('passport');
-var Comment = require('../models/comment');
-var Post = require('../models/post');
-var User = require('../models/user');
+var http = require('http');
+var fs = require('fs');
+var url = require('url');
+var querystring = require('querystring');
 
-// GET /comments
-// Display all comments
-router.get('/', function(req, res, next) {
-    Comment.find().populate('author').exec(function(err, comments) {
-        if (err) {
-            return next(err);
-        }
-        res.render('comments/index', { comments: comments });
-    });
-});
+var comments = [];
 
-// GET /comments/new
-// Display form for adding a new comment
-router.get('/new', function(req, res, next) {
-    if (req.isAuthenticated()) {
-        res.render('comments/new', { message: req.flash('message') });
+function handle_incoming_request(req, res) {
+    console.log("Incoming request: (" + req.method + ")" + req.url);
+    load_comments();
+    if (req.method.toLowerCase() == 'post') {
+        process_post(req, res);
     } else {
-        res.redirect('/users/login');
+        process_get(req, res);
     }
-});
+}
 
-// POST /comments
-// Process form for adding a new comment
-router.post('/', function(req, res, next) {
-    if (req.isAuthenticated()) {
-        var comment = new Comment({
-            content: req.body.content,
+function load_comments() {
+    fs.readFile('comments.json', function(err, data) {
+        if (err) {
+            console.log("Error loading comments: " + err);
+            return;
+        }
+        comments = JSON.parse(data);
+    });
+}
+
+function save_comments() {
+    fs.writeFile('comments.json', JSON.stringify(comments), function(err) {
+        if (err) {
+            console.log("Error saving comments: " + err);
+            return;
+        }
+    });
+}
+
+function process_get(req, res) {
+    var query = url.parse(req.url, true).query;
+    var pathname = url.parse(req.url, true).pathname;
+    if (pathname == '/comments.json') {
+        res.writeHead(200, {
+            'Content-Type': 'application/json'
+        });
+        res.end(JSON.stringify(comments));
+    } else if (pathname == '/comments.html') {
+        res.writeHead(200, {
+            'Content-Type': 'text/html'
+        });
+        var comments_html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Comments</title></head><body><ul>';
+        for (var i = 0; i < comments.length; i++) {
+            comments_html += '<li>' + comments[i] + '</li>';
+        }
+        comments_html += '</ul><form action="/comments.html" method="post"><textarea name="comment" id="comment" cols="30" rows="10"></textarea><input type="submit" value="Submit"></form></body></html>';
+        res.end(comments_html);
+    } else {
+        res.writeHead(404, {
+            'Content-Type': 'text/plain'
+        });
+        res.end('404 Not Found');
+    }
+}
+
+function process_post(req, res) {
+    var body = '';
